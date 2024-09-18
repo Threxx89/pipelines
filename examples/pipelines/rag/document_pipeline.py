@@ -64,7 +64,11 @@ class Pipeline:
 
         reader = SimpleDirectoryReader(self.valves.BASE_FILE_PATH)
         self.documents  = reader.load_data()
-        nodes = SentenceSplitter(chunk_size=1024).get_nodes_from_documents(self.documents)
+        nodes = SentenceSplitter(chunk_size=4096,chunk_overlap=40).get_nodes_from_documents(self.documents)
+        from llama_index.core.node_parser import HTMLNodeParser
+
+        parser = HTMLNodeParser()  # optional list of tags
+        nodes = parser.get_nodes_from_documents(self.documents)
         
         docstore = SimpleDocumentStore()
         docstore.add_documents(nodes)
@@ -81,9 +85,19 @@ class Pipeline:
         self, user_message: str, model_id: str, messages: List[dict], body: dict
     ) -> Union[str, Generator, Iterator]:
 
-        text_to_sql_template = PromptTemplate("Your are an expert on the provided document. You need to give a detailed response to the users question. Please provide an accurate answer based on the following question {user_message}. Using the language provide by the question.")
-        #query_engine = self.vector_index.as_query_engine(streaming=True,response_mode="tree_summarize", prompt_template=text_to_sql_template)
         query_engine = self.vector_index.as_query_engine(streaming=True)
         response = query_engine.query(user_message)
 
         return response.response_gen
+    
+    # def process_directory(self, directory):
+    #     for root, dirs, files in os.walk(directory):
+    #         if len(files) > 0:
+    #             try:
+    #                 reader = SimpleDirectoryReader(directory)
+    #                 self.documents = reader.load_data()
+    #                 self.nodes += MarkdownElementNodeParser(chunk_size=1024).get_nodes_from_documents(self.documents)
+    #             except:
+    #                 pass
+    #         for dirs_name in dirs:
+    #             self.process_directory(os.path.join(directory, dirs_name))
