@@ -29,7 +29,7 @@ class Pipeline:
         self.index = None
         self.summary_index = None
         self.vector_index = None
-        self.keyword_table_index = None
+        self.retriver = None
 
         self.valves = self.Valves(
             **{
@@ -51,31 +51,92 @@ class Pipeline:
         from llama_index.embeddings.ollama import OllamaEmbedding
         from llama_index.llms.ollama import Ollama
         from llama_index.core.node_parser import SentenceSplitter
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+        from llama_index.core.node_parser import LangchainNodeParser
+        from llama_index.core import SimpleDirectoryReader, StorageContext
+        from llama_index.core import VectorStoreIndex
+        from llama_index.vector_stores.postgres import PGVectorStore
+        from sqlalchemy import make_url
+        from langchain.document_loaders import TextLoader
+        from langchain.embeddings.openai import OpenAIEmbeddings
+        from langchain.text_splitter import CharacterTextSplitter
+        from langchain.vectorstores import Pinecone
+        from langchain.document_loaders import TextLoader
+        from langchain.vectorstores.pgvector import PGVector
+        import psycopg2
 
         Settings.embed_model = OllamaEmbedding(
-            model_name=self.valves.LLAMAINDEX_MODEL_NAME,
+            temperature=0,
+            model_name=self.valves.LLAMAINDEX_EMBEDDING_MODEL_NAME,
             base_url=self.valves.LLAMAINDEX_OLLAMA_BASE_URL,
         )
         Settings.llm = Ollama(
             model=self.valves.LLAMAINDEX_MODEL_NAME,
             base_url=self.valves.LLAMAINDEX_OLLAMA_BASE_URL,
         )
-        Settings.chunk_size = 1024
+
 
         reader = SimpleDirectoryReader(self.valves.BASE_FILE_PATH)
         self.documents  = reader.load_data()
-        nodes = SentenceSplitter(chunk_size=4096,chunk_overlap=40).get_nodes_from_documents(self.documents)
-        from llama_index.core.node_parser import HTMLNodeParser
-
-        parser = HTMLNodeParser()  # optional list of tags
+        #nodes = SentenceSplitter(chunk_size=8192,chunk_overlap=80).get_nodes_from_documents(self.documents)
+        #https://github.com/daveebbelaar/langchain-experiments/blob/main/pgvector/pgvector_service.py
+        parser = LangchainNodeParser(RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200))
         nodes = parser.get_nodes_from_documents(self.documents)
+        #docstore = SimpleDocumentStore()
+        #docstore.add_documents(nodes)
+        #storage_context = StorageContext.from_defaults(docstore=docstore)
         
-        docstore = SimpleDocumentStore()
-        docstore.add_documents(nodes)
-        storage_context = StorageContext.from_defaults(docstore=docstore)
-        
-        self.vector_index = VectorStoreIndex( nodes, storage_context=storage_context)
+        #self.vector_index = VectorStoreIndex( nodes, storage_context=storage_context, embed_model=Settings.embed_model)
 
+        # CONNECTION_STRING = PGVector.connection_string_from_db_params(
+        #     driver=os.environ.get("PGVECTOR_DRIVER", "psycopg2"),
+        #     host=os.environ.get("PGVECTOR_HOST", "localhost"),
+        #     port=int(os.environ.get("PGVECTOR_PORT", "5432")),
+        #     database=os.environ.get("PGVECTOR_DATABASE", "RAG"),
+        #     user=os.environ.get("PGVECTOR_USER", "postgres"),
+        #     password=os.environ.get("PGVECTOR_PASSWORD", "postres"),
+        # )
+        #COLLECTION_NAME = "The Project Gutenberg eBook of A Christmas Carol in Prose"
+        # create the store
+        # db = PGVector.from_documents(
+        #     embedding= Settings.embed_model,
+        #     documents=self.documents,
+        #     collection_name=COLLECTION_NAME,
+        #     connection_string=CONNECTION_STRING,
+        #     pre_delete_collection=False,
+        # )
+        connection_string = "postgresql://postgres:postgres@localhost:5432"
+        db_name = "RAG"
+        # conn = psycopg2.connect(connection_string)
+        # conn.autocommit = True
+
+        url = make_url(connection_string)
+        PGVectorStore.from_orm
+        vector_store = PGVectorStore.from_params(
+            database=db_name,
+            host=url.host,
+            password=url.password,
+            port=url.port,
+            user=url.username,
+            table_name="paul_graham_essay",
+            embed_dim=768,  # openai embedding dimension
+            hnsw_kwargs={
+                "hnsw_m": 16,
+                "hnsw_ef_construction": 64,
+                "hnsw_ef_search": 40,
+                "hnsw_dist_method": "vector_cosine_ops",
+            },
+        )
+
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+        #From DB Directly
+        #self.vector_index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
+
+        #Saving to DB
+        self.vector_index = VectorStoreIndex(nodes, storage_context=storage_context, embed_model=Settings.embed_model)
+        # index = VectorStoreIndex.from_documents(
+        #     self.documents , storage_context=storage_context, show_progress=True, embed_model=Settings.embed_model
+        # )
 
     async def on_shutdown(self):
         # This function is called when the server is stopped.
@@ -84,12 +145,50 @@ class Pipeline:
     def pipe(
         self, user_message: str, model_id: str, messages: List[dict], body: dict
     ) -> Union[str, Generator, Iterator]:
+        from llama_index.core import get_response_synthesizer
+        from llama_index.core.response_synthesizers import ResponseMode
+        from llama_index.llms.ollama import Ollama
 
-        query_engine = self.vector_index.as_query_engine(streaming=True)
-        response = query_engine.query(user_message)
-
-        return response.response_gen
+        llm = Ollama(
+            model=self.valves.LLAMAINDEX_MODEL_NAME,
+            base_url=self.valves.LLAMAINDEX_OLLAMA_BASE_URL,
+        )
+        response_synthesizer = get_response_synthesizer(
+            llm=llm,
+            response_mode=ResponseMode.COMPACT
+        )
+        # prompt_template = """You are a expert. You need to answer the question related to software development. 
+        # Given below is the context and question of the user.
+        # context = {context}
+        # question = {user_message}
+        # """
+        self.retriver = self.vector_index.as_retriever()
+     
+        
+        #query_engine = self.vector_index.as_query_engine(streaming=True)
+        #response = query_engine.query(user_message)
+        engine = RAGQueryEngine(retriever=self.retriver, response_synthesizer=response_synthesizer)
+        response = engine.custom_query(user_message)
+        return response.response
     
+from llama_index.core.query_engine import CustomQueryEngine
+from llama_index.core.retrievers import BaseRetriever
+from llama_index.core import get_response_synthesizer
+from llama_index.core.response_synthesizers import BaseSynthesizer
+from llama_index.core.postprocessor import SimilarityPostprocessor
+
+class RAGQueryEngine(CustomQueryEngine):
+    """RAG Query Engine."""
+
+    retriever: BaseRetriever
+    response_synthesizer: BaseSynthesizer
+
+    def custom_query(self, query_str: str):
+        nodes = self.retriever.retrieve(query_str)
+        #postprocessor = SimilarityPostprocessor(similarity_cutoff=0.7)
+        #nodes = postprocessor.postprocess_nodes(nodes)
+        response_obj = self.response_synthesizer.synthesize(query_str, nodes)
+        return response_obj
     # def process_directory(self, directory):
     #     for root, dirs, files in os.walk(directory):
     #         if len(files) > 0:
