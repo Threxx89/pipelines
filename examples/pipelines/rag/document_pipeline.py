@@ -30,7 +30,8 @@ class Pipeline:
         self.summary_index = None
         self.vector_index = None
         self.retriver = None
-
+#E:\\t5g-dev\\ProdApiJava2.0\\com.tap.t3g.fr.api.http\\docs\\
+#E:\\t3g-doc-root\\test\\
         self.valves = self.Valves(
             **{
                 "BASE_FILE_PATH": os.getenv("BASE_FILE_PATH", "E:\\t3g-doc-root\\test\\"),
@@ -75,13 +76,16 @@ class Pipeline:
             base_url=self.valves.LLAMAINDEX_OLLAMA_BASE_URL,
         )
 
-
-        reader = SimpleDirectoryReader(self.valves.BASE_FILE_PATH)
+        #loading from file
+        
+        reader = SimpleDirectoryReader(self.valves.BASE_FILE_PATH,recursive=True)
         self.documents  = reader.load_data()
-        #nodes = SentenceSplitter(chunk_size=8192,chunk_overlap=80).get_nodes_from_documents(self.documents)
+        #nodes = SentenceSplitter(chunk_size=8192,chunk_overlap=160).get_nodes_from_documents(self.documents)
         #https://github.com/daveebbelaar/langchain-experiments/blob/main/pgvector/pgvector_service.py
-        parser = LangchainNodeParser(RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200))
-        nodes = parser.get_nodes_from_documents(self.documents)
+        #parser = LangchainNodeParser(RecursiveCharacterTextSplitter(chunk_size=16384, chunk_overlap=1024))
+        #nodes = parser.get_nodes_from_documents(self.documents)
+
+
         #docstore = SimpleDocumentStore()
         #docstore.add_documents(nodes)
         #storage_context = StorageContext.from_defaults(docstore=docstore)
@@ -121,9 +125,9 @@ class Pipeline:
             table_name="paul_graham_essay",
             embed_dim=768,  # openai embedding dimension
             hnsw_kwargs={
-                "hnsw_m": 16,
-                "hnsw_ef_construction": 64,
-                "hnsw_ef_search": 40,
+                "hnsw_m": 32,
+                "hnsw_ef_construction": 128,
+                "hnsw_ef_search": 80,
                 "hnsw_dist_method": "vector_cosine_ops",
             },
         )
@@ -133,10 +137,10 @@ class Pipeline:
         #self.vector_index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 
         #Saving to DB
-        self.vector_index = VectorStoreIndex(nodes, storage_context=storage_context, embed_model=Settings.embed_model)
-        # index = VectorStoreIndex.from_documents(
-        #     self.documents , storage_context=storage_context, show_progress=True, embed_model=Settings.embed_model
-        # )
+       # self.vector_index = VectorStoreIndex(nodes, storage_context=storage_context, embed_model=Settings.embed_model)
+        self.vector_index  = VectorStoreIndex.from_documents(
+        self.documents  , storage_context=storage_context, show_progress=True, embed_model=Settings.embed_model
+        )
 
     async def on_shutdown(self):
         # This function is called when the server is stopped.
@@ -155,7 +159,7 @@ class Pipeline:
         )
         response_synthesizer = get_response_synthesizer(
             llm=llm,
-            response_mode=ResponseMode.COMPACT
+            response_mode=ResponseMode.TREE_SUMMARIZE
         )
         # prompt_template = """You are a expert. You need to answer the question related to software development. 
         # Given below is the context and question of the user.
