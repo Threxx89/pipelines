@@ -1,0 +1,19 @@
+Download and Install Ollama
+
+Install required llm from ollama website
+
+For Open-Webui
+
+in vs code install python exstention
+setup virtual environment
+open terminal in cmd not power shell 
+cd backend
+pip install -r requirements.txt
+
+start windows.bat
+
+
+for pipeline
+pip install -r requirements.txt
+
+install vector db
