@@ -35,7 +35,7 @@ class Pipeline:
         self.valves = self.Valves(
             **{
                 "BASE_FILE_PATH": os.getenv("BASE_FILE_PATH", "E:\\t3g-doc-root\\test\\"),
-                "LLAMAINDEX_MODEL_NAME": os.getenv("LLAMAINDEX_MODEL_NAME", "lama3.2:3b-instruct-fp16"),
+                "LLAMAINDEX_MODEL_NAME": os.getenv("LLAMAINDEX_MODEL_NAME", "llama3.2:3b-instruct-fp16"),
                 "LLAMAINDEX_OLLAMA_BASE_URL": os.getenv("LLAMAINDEX_OLLAMA_BASE_URL", "http://localhost:11434"),
                 "LLAMAINDEX_EMBEDDING_MODEL_NAME": os.getenv("LLAMAINDEX_EMBEDDING_MODEL_NAME", "nomic-embed-text:v1.5"),
             }
@@ -52,19 +52,17 @@ class Pipeline:
         from llama_index.embeddings.ollama import OllamaEmbedding
         from llama_index.llms.ollama import Ollama
         from llama_index.core.node_parser import SentenceSplitter
-        from langchain.text_splitter import RecursiveCharacterTextSplitter
         from llama_index.core.node_parser import LangchainNodeParser
         from llama_index.core import SimpleDirectoryReader, StorageContext
         from llama_index.core import VectorStoreIndex
-        from llama_index.vector_stores.postgres import PGVectorStore
         from sqlalchemy import make_url
-        from langchain.document_loaders import TextLoader
-        from langchain.embeddings.openai import OpenAIEmbeddings
-        from langchain.text_splitter import CharacterTextSplitter
-        from langchain.vectorstores import Pinecone
-        from langchain.document_loaders import TextLoader
-        from langchain.vectorstores.pgvector import PGVector
-        import psycopg2
+        from llama_index.core import VectorStoreIndex
+        from llama_index.vector_stores.chroma import ChromaVectorStore
+        import chromadb
+        from llama_index.core.node_parser import (
+            SentenceSplitter,
+            SemanticSplitterNodeParser,
+        )
 
         Settings.embed_model = OllamaEmbedding(
             temperature=0,
@@ -80,68 +78,29 @@ class Pipeline:
         
         reader = SimpleDirectoryReader(self.valves.BASE_FILE_PATH,recursive=True)
         self.documents  = reader.load_data()
-        #nodes = SentenceSplitter(chunk_size=8192,chunk_overlap=160).get_nodes_from_documents(self.documents)
-        #https://github.com/daveebbelaar/langchain-experiments/blob/main/pgvector/pgvector_service.py
-        #parser = LangchainNodeParser(RecursiveCharacterTextSplitter(chunk_size=16384, chunk_overlap=1024))
-        #nodes = parser.get_nodes_from_documents(self.documents)
+        splitter = SemanticSplitterNodeParser(
+                buffer_size=1, breakpoint_percentile_threshold=95, embed_model=Settings.embed_model
+)
+
+        # also baseline splitter
+        base_splitter = SentenceSplitter(chunk_size=512)
+        nodes = splitter.get_nodes_from_documents(self.documents , show_progress=True)
+
+        docstore = SimpleDocumentStore()
+        docstore.add_documents(nodes)
+        storage_context = StorageContext.from_defaults(docstore=docstore)
 
 
-        #docstore = SimpleDocumentStore()
-        #docstore.add_documents(nodes)
-        #storage_context = StorageContext.from_defaults(docstore=docstore)
-        
-        #self.vector_index = VectorStoreIndex( nodes, storage_context=storage_context, embed_model=Settings.embed_model)
-
-        # CONNECTION_STRING = PGVector.connection_string_from_db_params(
-        #     driver=os.environ.get("PGVECTOR_DRIVER", "psycopg2"),
-        #     host=os.environ.get("PGVECTOR_HOST", "localhost"),
-        #     port=int(os.environ.get("PGVECTOR_PORT", "5432")),
-        #     database=os.environ.get("PGVECTOR_DATABASE", "RAG"),
-        #     user=os.environ.get("PGVECTOR_USER", "postgres"),
-        #     password=os.environ.get("PGVECTOR_PASSWORD", "postres"),
-        # )
-        #COLLECTION_NAME = "The Project Gutenberg eBook of A Christmas Carol in Prose"
-        # create the store
-        # db = PGVector.from_documents(
-        #     embedding= Settings.embed_model,
-        #     documents=self.documents,
-        #     collection_name=COLLECTION_NAME,
-        #     connection_string=CONNECTION_STRING,
-        #     pre_delete_collection=False,
-        # )
-        connection_string = "postgresql://postgres:postgres@localhost:5432"
-        db_name = "RAG"
-        # conn = psycopg2.connect(connection_string)
-        # conn.autocommit = True
-
-        url = make_url(connection_string)
-        PGVectorStore.from_orm
-        vector_store = PGVectorStore.from_params(
-            database=db_name,
-            host=url.host,
-            password=url.password,
-            port=url.port,
-            user=url.username,
-            table_name="paul_graham_essay",
-            embed_dim=768,  # openai embedding dimension
-            hnsw_kwargs={
-                "hnsw_m": 32,
-                "hnsw_ef_construction": 128,
-                "hnsw_ef_search": 80,
-                "hnsw_dist_method": "vector_cosine_ops",
-            },
-        )
-
+        chroma_client = chromadb.PersistentClient("./chroma3.db")
+        collection = chroma_client.get_or_create_collection(name="Documents")
+        vector_store = ChromaVectorStore(chroma_collection=collection)
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
-        #From DB Directly
-        #self.vector_index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
-
-        #Saving to DB
-       # self.vector_index = VectorStoreIndex(nodes, storage_context=storage_context, embed_model=Settings.embed_model)
-        self.vector_index  = VectorStoreIndex.from_documents(
-        self.documents  , storage_context=storage_context, show_progress=True, embed_model=Settings.embed_model
-        )
-
+        self.vector_index = VectorStoreIndex(
+                                nodes=nodes, 
+                                storage_context=storage_context, 
+                                show_progress=True, 
+                                embed_model=Settings.embed_model
+                            )
     async def on_shutdown(self):
         # This function is called when the server is stopped.
         pass

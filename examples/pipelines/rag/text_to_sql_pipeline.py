@@ -45,7 +45,7 @@ class Pipeline:
                 "DB_PASSWORD": os.getenv("DB_PASSWORD", "postgres"),                          # Password to connect to the database with
                 "DB_DATABASE": os.getenv("DB_DATABASE", "u1273psr"),                          # Database to select on the DB instance
                 "OLLAMA_HOST": os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434"), # Make sure to update with the URL of your Ollama host, such as http://localhost:11434 or remote server address
-                "TEXT_TO_SQL_MODEL": os.getenv("TEXT_TO_SQL_MODEL", "llama3.1:8b")            # Model to use for text-to-SQL generation      
+                "TEXT_TO_SQL_MODEL": os.getenv("TEXT_TO_SQL_MODEL", "llama3.1:8b-instruct-q8_0")            # Model to use for text-to-SQL generation      
             }
         )
 

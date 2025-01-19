@@ -35,7 +35,7 @@ class Pipeline:
         self.valves = self.Valves(
             **{
                 "BASE_FILE_PATH": os.getenv("BASE_FILE_PATH", "E:\\t3g-doc-root\\test\\"),
-                "LLAMAINDEX_MODEL_NAME": os.getenv("LLAMAINDEX_MODEL_NAME", "llama3.2:3b-instruct-fp16"),
+                "LLAMAINDEX_MODEL_NAME": os.getenv("LLAMAINDEX_MODEL_NAME", "llama3.1:8b-instruct-q8_0"),
                 "LLAMAINDEX_OLLAMA_BASE_URL": os.getenv("LLAMAINDEX_OLLAMA_BASE_URL", "http://localhost:11434"),
                 "LLAMAINDEX_EMBEDDING_MODEL_NAME": os.getenv("LLAMAINDEX_EMBEDDING_MODEL_NAME", "nomic-embed-text:v1.5"),
             }
@@ -59,10 +59,7 @@ class Pipeline:
         from llama_index.core import VectorStoreIndex
         from llama_index.vector_stores.chroma import ChromaVectorStore
         import chromadb
-        from llama_index.core.node_parser import (
-            SentenceSplitter,
-            SemanticSplitterNodeParser,
-        )
+        import psycopg2
 
         Settings.embed_model = OllamaEmbedding(
             temperature=0,
@@ -78,29 +75,50 @@ class Pipeline:
         
         reader = SimpleDirectoryReader(self.valves.BASE_FILE_PATH,recursive=True)
         self.documents  = reader.load_data()
-        splitter = SemanticSplitterNodeParser(
-                buffer_size=1, breakpoint_percentile_threshold=95, embed_model=Settings.embed_model
-)
-
-        # also baseline splitter
-        base_splitter = SentenceSplitter(chunk_size=512)
-        nodes = splitter.get_nodes_from_documents(self.documents , show_progress=True)
-
-        docstore = SimpleDocumentStore()
-        docstore.add_documents(nodes)
-        storage_context = StorageContext.from_defaults(docstore=docstore)
+        #nodes = SentenceSplitter(chunk_size=8192,chunk_overlap=160).get_nodes_from_documents(self.documents)
+        #https://github.com/daveebbelaar/langchain-experiments/blob/main/pgvector/pgvector_service.py
+        #parser = LangchainNodeParser(RecursiveCharacterTextSplitter(chunk_size=16384, chunk_overlap=1024))
+        #nodes = parser.get_nodes_from_documents(self.documents)
 
 
-        chroma_client = chromadb.PersistentClient("./chroma3.db")
-        collection = chroma_client.get_or_create_collection(name="Documents")
+        #docstore = SimpleDocumentStore()
+        #docstore.add_documents(nodes)
+        #storage_context = StorageContext.from_defaults(docstore=docstore)
+        
+        #self.vector_index = VectorStoreIndex( nodes, storage_context=storage_context, embed_model=Settings.embed_model)
+
+        # CONNECTION_STRING = PGVector.connection_string_from_db_params(
+        #     driver=os.environ.get("PGVECTOR_DRIVER", "psycopg2"),
+        #     host=os.environ.get("PGVECTOR_HOST", "localhost"),
+        #     port=int(os.environ.get("PGVECTOR_PORT", "5432")),
+        #     database=os.environ.get("PGVECTOR_DATABASE", "RAG"),
+        #     user=os.environ.get("PGVECTOR_USER", "postgres"),
+        #     password=os.environ.get("PGVECTOR_PASSWORD", "postres"),
+        # )
+        #COLLECTION_NAME = "The Project Gutenberg eBook of A Christmas Carol in Prose"
+        # create the store
+        # db = PGVector.from_documents(
+        #     embedding= Settings.embed_model,
+        #     documents=self.documents,
+        #     collection_name=COLLECTION_NAME,
+        #     connection_string=CONNECTION_STRING,
+        #     pre_delete_collection=False,
+        # )
+
+        chroma_client = chromadb.PersistentClient("./chroma2.db")
+        collection = chroma_client.create_collection(name="Documents")
         vector_store = ChromaVectorStore(chroma_collection=collection)
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
-        self.vector_index = VectorStoreIndex(
-                                nodes=nodes, 
-                                storage_context=storage_context, 
-                                show_progress=True, 
-                                embed_model=Settings.embed_model
-                            )
+
+        #From DB Directly
+        #self.vector_index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
+
+        #Saving to DB
+       # self.vector_index = VectorStoreIndex(nodes, storage_context=storage_context, embed_model=Settings.embed_model)
+        self.vector_index  = VectorStoreIndex.from_documents(
+        self.documents  , storage_context=storage_context, show_progress=True, embed_model=Settings.embed_model
+        )
+
     async def on_shutdown(self):
         # This function is called when the server is stopped.
         pass
@@ -130,9 +148,9 @@ class Pipeline:
         
         #query_engine = self.vector_index.as_query_engine(streaming=True)
         #response = query_engine.query(user_message)
-        # engine = RAGQueryEngine(retriever=self.retriver, response_synthesizer=response_synthesizer)
-        # response = engine.custom_query(user_message)
-        return self.vector_index.as_query_engine(streaming=True).query(user_message)
+        engine = RAGQueryEngine(retriever=self.retriver, response_synthesizer=response_synthesizer)
+        response = engine.custom_query(user_message)
+        return response.response
     
 from llama_index.core.query_engine import CustomQueryEngine
 from llama_index.core.retrievers import BaseRetriever
