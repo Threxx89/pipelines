@@ -112,3 +112,8 @@ Find various integration examples in the `/examples` directory. These examples s
 We’re continuously evolving! We'd love to hear your feedback and understand which hooks and features would best suit your use case. Feel free to reach out and become a part of our Open WebUI community!
 
 Our vision is to push **Pipelines** to become the ultimate plugin framework for our AI interface, **Open WebUI**. Imagine **Open WebUI** as the WordPress of AI interfaces, with **Pipelines** being its diverse range of plugins. Join us on this exciting journey! 🌍
+
+
+Slack Stuff
+
+                "SLACK_BOT_TOKEN": os.getenv("SLACK_BOT_TOKEN", "xoxb-27331768759-5793808550610-VIwJjMfkilI6pemANB6oySV0"),

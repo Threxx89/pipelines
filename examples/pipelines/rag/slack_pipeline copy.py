@@ -40,7 +40,6 @@ class Pipeline:
                 "LLAMAINDEX_MODEL_NAME": os.getenv("LLAMAINDEX_MODEL_NAME", "llama3.1:8b-instruct-q8_0"),
                 "LLAMAINDEX_OLLAMA_BASE_URL": os.getenv("LLAMAINDEX_OLLAMA_BASE_URL", "http://localhost:11434"),
                 "LLAMAINDEX_EMBEDDING_MODEL_NAME": os.getenv("LLAMAINDEX_EMBEDDING_MODEL_NAME", "nomic-embed-text:v1.5"),
-                "SLACK_BOT_TOKEN": os.getenv("SLACK_BOT_TOKEN", "xoxb-27331768759-5793808550610-VIwJjMfkilI6pemANB6oySV0"),
             }
         )
 
