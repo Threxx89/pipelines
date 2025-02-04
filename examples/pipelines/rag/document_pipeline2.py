@@ -24,18 +24,18 @@ class Pipeline:
         LLAMAINDEX_OLLAMA_BASE_URL: str
 
     def __init__(self):
-        self.name = "Document RAG Pipeline"
+        self.name = "File Search RAG Pipeline"
         self.documents = None
         self.index = None
         self.summary_index = None
         self.vector_index = None
         self.retriver = None
 #E:\\t5g-dev\\ProdApiJava2.0\\com.tap.t3g.fr.api.http\\docs\\
-#E:\\t3g-doc-root\\test\\
+#E:\\t3g-doc-root\\test\\llama3.2:3b-instruct-fp16
         self.valves = self.Valves(
             **{
                 "BASE_FILE_PATH": os.getenv("BASE_FILE_PATH", "E:\\t3g-doc-root\\test\\"),
-                "LLAMAINDEX_MODEL_NAME": os.getenv("LLAMAINDEX_MODEL_NAME", "llama3.2:3b-instruct-fp16"),
+                "LLAMAINDEX_MODEL_NAME": os.getenv("LLAMAINDEX_MODEL_NAME", "deepseek-r1:14b-qwen-distill-q4_K_M"),
                 "LLAMAINDEX_OLLAMA_BASE_URL": os.getenv("LLAMAINDEX_OLLAMA_BASE_URL", "http://localhost:11434"),
                 "LLAMAINDEX_EMBEDDING_MODEL_NAME": os.getenv("LLAMAINDEX_EMBEDDING_MODEL_NAME", "nomic-embed-text:v1.5"),
             }
@@ -100,7 +100,7 @@ class Pipeline:
         # storage_context = StorageContext.from_defaults(docstore=docstore)
 
 
-        chroma_client = chromadb.PersistentClient("./chroma4.db")
+        chroma_client = chromadb.PersistentClient("./chroma5.db")
         collection = chroma_client.get_or_create_collection(name="Documents")
         vector_store = ChromaVectorStore(chroma_collection=collection)
         storage_context = StorageContext.from_defaults(vector_store=vector_store)

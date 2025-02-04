@@ -83,7 +83,7 @@ class Pipeline:
         chunk_size=1024,
         chunk_overlap=20,
         paragraph_separator="\n\n\n",
-        secondary_chunking_regex="[^,.;。]+[,.;。]?",
+        secondary_chunking_regex="[^,.;]+[,.;]?",
         tokenizer= tiktoken.encoding_for_model("gpt-3.5-turbo").encode
         )
 
