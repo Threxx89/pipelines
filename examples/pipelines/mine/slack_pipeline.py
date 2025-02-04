@@ -71,7 +71,7 @@ class Pipeline:
         #loading from file
         slack_token = self.valves.SLACK_BOT_TOKEN
         channel_id = ["CAFGQ3DG8"]
-        self.documents  = SlackReader(slack_token=slack_token,earliest_date=datetime.datetime(2024, 11, 1)).load_data(
+        self.documents  = SlackReader(slack_token=slack_token,earliest_date=datetime.datetime(2025, 1, 1)).load_data(
             channel_ids=channel_id
         )
         
