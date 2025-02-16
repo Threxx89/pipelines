@@ -43,9 +43,9 @@ class Pipeline:
                 "DB_PORT": os.getenv("DB_PORT", "5432"),                                        # Database port 
                 "DB_USER": os.getenv("DB_USER", "postgres"),                                  # User to connect to the database with
                 "DB_PASSWORD": os.getenv("DB_PASSWORD", "postgres"),                          # Password to connect to the database with
-                "DB_DATABASE": os.getenv("DB_DATABASE", "fr"),                          # Database to select on the DB instance
+                "DB_DATABASE": os.getenv("DB_DATABASE", "U0000fr"),                          # Database to select on the DB instance
                 "OLLAMA_HOST": os.getenv("OLLAMA_HOST", "http://localhost:11434"), # Make sure to update with the URL of your Ollama host, such as http://localhost:11434 or remote server address
-                "TEXT_TO_SQL_MODEL": os.getenv("TEXT_TO_SQL_MODEL", "deepseek-r1:8b-llama-distill-q4_K_M")            # Model to use for text-to-SQL generation      
+                "TEXT_TO_SQL_MODEL": os.getenv("TEXT_TO_SQL_MODEL", "llama3.1:8b-instruct-q4_K_S")            # Model to use for text-to-SQL generation      
             }
         )
 
@@ -74,12 +74,12 @@ class Pipeline:
         metadata.reflect(bind=self.engine)
 
         # Get the list of all table names
-        table_names = metadata.tables.keys()
+       # table_names = metadata.tables.keys()
         # Create database reader for Postgres
-        sql_database = SQLDatabase(self.engine, include_tables=table_names)
-
+       # sql_database = SQLDatabase(self.engine, include_tables=table_names)
+        sql_database = SQLDatabase(self.engine, include_tables=["reservation"])
         # Set up LLM connection; uses phi3 model with 128k context limit since some queries have returned 20k+ tokens
-        llm = Ollama(model=self.valves.TEXT_TO_SQL_MODEL, base_url=self.valves.OLLAMA_HOST, request_timeout=180.0, context_window=30000)
+        llm = Ollama(model=self.valves.TEXT_TO_SQL_MODEL, base_url=self.valves.OLLAMA_HOST, request_timeout=720.0, context_window=30000)
 
         # Set up the custom prompt used when generating SQL queries from text
         text_to_sql_prompt = """
@@ -107,7 +107,7 @@ class Pipeline:
 
         query_engine = NLSQLTableQueryEngine(
             sql_database=sql_database, 
-            tables=table_names,
+            tables=["reservation"],
             llm=llm, 
             embed_model="local", 
             text_to_sql_prompt=text_to_sql_template, 
